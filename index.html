@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SparkFlow - A Better Tool to Connect you to Life</title>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+        }
+        #sparkInput {
+            width: 50%;
+        }
+        #send {
+            background-color: white;
+            color: black;
+            border: grey 2px solid;
+            border-radius: 3px;
+            width: 50%;
+        }
+        #send:hover {
+            background-color: black;
+            color: white;
+            border: white 2px solid;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>SparkFlow - A Better Tool to Connect you to Life</h1>
+    <p>
+        Welcome to SparkFlow, your new social media platform designed to help you connect, share, and engage with the world in a meaningful way.
+        Experience seamless interaction and discover a vibrant community at your fingertips.
+    </p>
+    <textarea placeholder="Write your Spark here" id="sparkInput"></textarea>
+    <br>
+    <a href="#" onclick="sendSpark()"><button id="send">Send</button></a>
+    <div class="sparks">
+        <h3>Sparks:</h3>
+    </div>
+    <script>
+        const API_BASE = 'https://sparkflow-dqj6.onrender.com';
+        let userName = localStorage.getItem('sparkflow_name');
+        if (!userName) {
+            userName = prompt('Please enter your name:');
+            if (userName && userName.trim() !== '') {
+                localStorage.setItem('sparkflow_name', userName.trim());
+            } else {
+                alert('Name is required. Please reload and enter your name.');
+            }
+        }
+        async function sendSpark() {
+            const sparkInput = document.getElementById('sparkInput').value;
+            if (sparkInput.trim() === '') {
+                alert('Please write something before sending.');
+                return;
+            }
+            if (!userName || userName.trim() === '') {
+                alert('Name is required. Please reload the page and enter your name.');
+                return;
+            }
+            if (!confirm('Are you sure you want to send this Spark?')) {
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE}/api/sparks`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: userName, message: sparkInput })
+                });
+                if (response.ok) {
+                    alert('Your Spark has been sent successfully!');
+                    document.getElementById('sparkInput').value = '';
+                    await loadSparks();
+                } else {
+                    alert('Failed to send Spark.');
+                }
+            } catch (error) {
+                alert('Error connecting to server.');
+            }
+        }
+        async function loadSparks() {
+            try {
+                const response = await fetch(`${API_BASE}/api/sparks`);
+                if (response.ok) {
+                    const sparks = await response.json();
+                    const sparksDiv = document.querySelector('.sparks');
+                    let html = '<h3>Sparks:</h3>';
+                    if (sparks.length === 0) {
+                        html += '<p>No sparks yet.</p>';
+                    } else {
+                        html += '<ul>';
+                        sparks.forEach(spark => {
+                            html += `<li><strong>${spark.name}:</strong> ${spark.message} <span style="font-size:0.8em;color:gray;">(${new Date(spark.created_at).toLocaleString()})</span> <button onclick="removeSpark(${spark.id})" style="margin-left:10px;">Remove</button></li>`;
+                        });
+                        html += '</ul>';
+                    }
+                    sparksDiv.innerHTML = html;
+                }
+            } catch (error) {
+                // Optionally handle error
+            }
+        }
+        async function removeSpark(id) {
+            if (!confirm('Are you sure you want to remove this Spark?')) return;
+            try {
+                const response = await fetch(`${API_BASE}/api/sparks/${id}`, {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    await loadSparks();
+                } else {
+                    alert('Failed to remove Spark.');
+                }
+            } catch (error) {
+                alert('Error connecting to server.');
+            }
+        }
+        window.onload = loadSparks;
+    </script>
+</body>
+</html>
