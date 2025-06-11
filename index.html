@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SparkFlow - A Better Tool to Connect you to Life</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+        }
+        #sparkInput {
+            width: 50%;
+        }
+        #send {
+            background-color: white;
+            color: black;
+            border: grey 2px solid;
+            border-radius: 3px;
+            width: 50%;
+        }
+        #send:hover {
+            background-color: black;
+            color: white;
+            border: white 2px solid;
+            cursor: pointer;
+        }    </style>
+</head>
+<body>
+    <h1>SparkFlow - A Better Tool to Connect you to Life</h1>
+    <p>
+        Welcome to SparkFlow, your new social media platform designed to help you connect, share, and engage with the world in a meaningful way.
+        Experience seamless interaction and discover a vibrant community at your fingertips.
+    </p>
+    <textarea placeholder="Write your Spark here" id="sparkInput"></textarea>
+    <br>
+    <a href="#" onclick="sendSpark()"><button id="send">Send</button></a>
+    <div class="sparks">
+        <h3>Sparks:</h3>
+    </div>
+    <script>
+        // Initialize Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyC2ZQHVLsr9Q7GGRGQdXk2cVVYSrxMrXqE",
+            authDomain: "sparkflow-app.firebaseapp.com",
+            databaseURL: "https://sparkflow-app-default-rtdb.firebaseio.com",
+            projectId: "sparkflow-app",
+            storageBucket: "sparkflow-app.appspot.com",
+            messagingSenderId: "867035887318",
+            appId: "1:867035887318:web:5d53a5d8f52bdf7c82e7be"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const request = indexedDB.open('SparkFlowDB', 2); // Increment version to force upgrade
+
+        request.onerror = (event) => {
+            console.error('Database error:', event.target.error);
+            alert('Database error: ' + event.target.error);
+        };
+
+        request.onupgradeneeded = (event) => {
+            console.log('Upgrading database...');
+            db = event.target.result;
+            
+            // Delete old store if exists
+            if (db.objectStoreNames.contains('sparks')) {
+                db.deleteObjectStore('sparks');
+            }
+            
+            // Create new store
+            const store = db.createObjectStore('sparks', { keyPath: 'id', autoIncrement: true });
+            store.createIndex('created_at', 'created_at');
+            console.log('Store created successfully');
+        };        request.onsuccess = (event) => {
+            console.log('Database opened successfully');
+            db = event.target.result;
+            db.onerror = (event) => {
+                console.error('Database error:', event.target.error);
+                alert('Database error: ' + event.target.error);
+            };
+            loadSparks();
+        };
+
+        let userName = localStorage.getItem('sparkflow_name');
+        if (!userName) {
+            userName = prompt('Please enter your name:');
+            if (userName && userName.trim() !== '') {
+                localStorage.setItem('sparkflow_name', userName.trim());
+            } else {
+                alert('Name is required. Please reload and enter your name.');
+            }
+        }        async function sendSpark() {
+            const sparkInput = document.getElementById('sparkInput').value;
+            if (sparkInput.trim() === '') {
+                alert('Please write something before sending.');
+                return;
+            }
+            if (!userName || userName.trim() === '') {
+                alert('Name is required. Please reload the page and enter your name.');
+                return;
+            }
+            if (!confirm('Are you sure you want to send this Spark?')) {
+                return;
+            }
+
+            const spark = {
+                name: userName,
+                message: sparkInput,
+                created_at: firebase.database.ServerValue.TIMESTAMP
+            };
+
+            try {
+                await db.ref('sparks').push(spark);
+                alert('Your Spark has been sent successfully!');
+                document.getElementById('sparkInput').value = '';
+            } catch (error) {
+                alert('Failed to save Spark: ' + error.message);
+                console.error(error);
+            }
+        }        function loadSparks() {
+            const sparksDiv = document.querySelector('.sparks');
+            db.ref('sparks').orderByChild('created_at').limitToLast(100).on('value', (snapshot) => {
+                const sparks = [];
+                snapshot.forEach((childSnapshot) => {
+                    sparks.push({
+                        id: childSnapshot.key,
+                        ...childSnapshot.val()
+                    });
+                });
+
+                let html = '<h3>Sparks:</h3>';
+                if (sparks.length === 0) {
+                    html += '<p>No sparks yet.</p>';
+                } else {
+                    html += '<ul>';
+                    sparks.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                        .forEach(spark => {
+                            html += `<li><strong>${spark.name}:</strong> ${spark.message} <span style="font-size:0.8em;color:gray;">(${new Date(spark.created_at).toLocaleString()})</span> <button onclick="removeSpark(${spark.id})" style="margin-left:10px;">Remove</button></li>`;
+                        });
+                    html += '</ul>';
+                }
+                sparksDiv.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading sparks:', error);
+                sparksDiv.innerHTML = '<h3>Sparks:</h3><p>Error loading sparks. Please reload the page.</p>';
+            }
+        }
+
+        async function removeSpark(id) {
+            if (!confirm('Are you sure you want to remove this Spark?')) return;
+            
+            const transaction = db.transaction(['sparks'], 'readwrite');
+            const store = transaction.objectStore('sparks');
+            
+            try {
+                await new Promise((resolve, reject) => {
+                    const request = store.delete(id);
+                    request.onsuccess = () => resolve();
+                    request.onerror = () => reject(request.error);
+                });
+                await loadSparks();
+            } catch (error) {
+                alert('Failed to remove Spark.');
+                console.error(error);
+            }
+        }
+
+        // Initial load of sparks
+        window.onload = () => {
+            if (db) loadSparks();
+        };
+    </script>
+</body>
+</html>
